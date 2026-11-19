@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拾光 · 大学物理 A2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside>
+  <a class="brand" href="">拾光</a>
+  <p class="course">大学物理 A2</p>
+  <nav aria-label="复习模式">
+    <button data-mode="today" aria-pressed="true">今日复习</button>
+    <button data-mode="all" aria-pressed="false">全部题目</button>
+    <button data-mode="due">待复习</button>
+    <button data-mode="hard">重点重练</button>
+    <button data-mode="star">我的收藏</button>
+  </nav>
+  <label for="deck">作业章节</label>
+  <select id="deck"><option value="0">全部作业</option></select>
+  <button class="outline export" id="export">导出学习记录</button>
+</aside>
+<main>
+  <header>
+    <div><h1>物理复习室</h1><p id="stats"></p></div>
+    <button class="outline" id="shuffle">打乱题序</button>
+  </header>
+  <section class="daily" aria-labelledby="daily-title">
+    <div class="daily-top">
+      <div><h2 id="daily-title">今日目标</h2><p id="daily-progress" role="status"></p></div>
+      <form id="goal-form">
+        <label for="goal">每日题数</label>
+        <input type="number" id="goal" required min="1" max="77" step="1">
+        <button class="outline" type="submit">保存目标</button>
+      </form>
+    </div>
+    <progress id="goal-progress" aria-label="今日目标完成度"></progress>
+    <p id="daily-plan"></p>
+    <button id="start-today" class="outline" hidden>进入今日复习</button>
+  </section>
+  <div class="toolbar">
+    <label class="search">搜索 <input id="search" type="search" placeholder="输入题目关键词"></label>
+    <span id="position" aria-live="polite"></span>
+  </div>
+  <article id="card">
+    <div class="cardhead">
+      <div><p id="chapter"></p><h2 id="title"></h2></div>
+      <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
+    </div>
+    <div id="paper"><img id="prompt" alt=""></div>
+    <section id="solution" hidden>
+      <div class="solutionhead"><h3>本题参考答案</h3><button class="outline" id="hide">收起答案</button></div>
+      <img id="answer" alt="">
+    </section>
+    <div class="actions">
+      <button id="reveal" class="primary">查看本题答案 <kbd>空格</kbd></button>
+      <div id="rating" hidden>
+        <p>这道题掌握得怎么样？</p>
+        <div class="grades">
+          <button data-grade="hard" class="outline">还需练习 <kbd>1</kbd><small id="interval-hard"></small></button>
+          <button data-grade="good" class="outline">基本掌握 <kbd>2</kbd><small id="interval-good"></small></button>
+          <button data-grade="easy" class="primary">熟练掌握 <kbd>3</kbd><small id="interval-easy"></small></button>
+        </div>
+      </div>
+    </div>
+    <div class="pager">
+      <button class="outline" id="prev">上一题</button>
+      <a id="original" target="_blank" rel="noopener">原题 PDF</a>
+      <button class="outline" id="next">下一题</button>
+    </div>
+  </article>
+  <p id="empty" hidden>没有符合条件的题目。可以切换章节或清除搜索词。</p>
+  <footer>练习记录保存在当前浏览器。 <button id="reset">重置记录</button></footer>
+</main>
+<div id="toast" role="status"></div>
+<script src="data.js"></script><script src="app.js"></script>
+</body>
+</html>
