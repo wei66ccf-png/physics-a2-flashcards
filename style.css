@@ -81,3 +81,39 @@ footer button { border: 0; background: transparent; text-decoration: underline; 
   .daily { padding: 13px; }
   #goal-form { justify-content: flex-start; }
 }
+
+/* Give the worksheet more room than the surrounding controls. */
+main { width: min(100%, 1250px); padding-inline: clamp(12px, 2.8vw, 42px); }
+.card-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+#paper, #solution { padding-inline: clamp(4px, 1vw, 12px); }
+.reader {
+  width: min(100%, 1500px);
+  max-width: 100%;
+  height: min(94dvh, 1100px);
+  max-height: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--ink);
+}
+.reader[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.reader::backdrop { background: #21181099; }
+body:has(.reader[open]) { overflow: hidden; }
+.reader-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px 14px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+.zoom-controls { display: flex; align-items: center; gap: 8px; }
+.zoom-controls output { min-inline-size: 3.5ch; text-align: center; }
+.reader-scroll { overflow: auto; overscroll-behavior: contain; padding-block: 6px; }
+.reader-scroll img { width: var(--reader-zoom, 100%); max-width: none; mix-blend-mode: normal; }
+@media (max-width:720px) {
+  #paper, #solution { padding-inline: 2px; }
+  .cardhead { align-items: flex-start; flex-wrap: wrap; }
+  .card-controls { justify-content: flex-start; }
+  .reader { height: 100dvh; border-radius: 0; border: 0; }
+}
+@media (max-width:720px) {
+  .solutionhead { flex-wrap: wrap; }
+}

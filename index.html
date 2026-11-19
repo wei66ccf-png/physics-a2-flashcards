@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 大学物理 A2</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=reader">
 </head>
 <body>
 <aside>
@@ -46,11 +46,20 @@
   <article id="card">
     <div class="cardhead">
       <div><p id="chapter"></p><h2 id="title"></h2></div>
-      <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
+      <div class="card-controls">
+        <button class="primary" id="read-prompt" aria-haspopup="dialog">放大阅读</button>
+        <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
+      </div>
     </div>
     <div id="paper"><img id="prompt" alt=""></div>
     <section id="solution" hidden>
-      <div class="solutionhead"><h3>本题参考答案</h3><button class="outline" id="hide">收起答案</button></div>
+      <div class="solutionhead">
+        <h3>本题参考答案</h3>
+        <div class="card-controls">
+          <button class="outline" id="read-answer" aria-haspopup="dialog">放大答案</button>
+          <button class="outline" id="hide">收起答案</button>
+        </div>
+      </div>
       <img id="answer" alt="">
     </section>
     <div class="actions">
@@ -73,7 +82,21 @@
   <p id="empty" hidden>没有符合条件的题目。可以切换章节或清除搜索词。</p>
   <footer>练习记录保存在当前浏览器。 <button id="reset">重置记录</button></footer>
 </main>
+<dialog class="reader" id="reader" aria-labelledby="reader-title">
+  <div class="reader-toolbar">
+    <h3 id="reader-title">放大阅读</h3>
+    <div class="zoom-controls">
+      <button class="outline" id="zoom-out">缩小</button>
+      <output id="zoom-value" aria-live="polite"></output>
+      <button class="outline" id="zoom-in">放大</button>
+      <form method="dialog"><button class="outline" autofocus>关闭</button></form>
+    </div>
+  </div>
+  <div class="reader-scroll" id="reader-scroll" tabindex="0" aria-label="滚动查看放大的内容">
+    <img id="reader-image" alt="">
+  </div>
+</dialog>
 <div id="toast" role="status"></div>
-<script src="data.js"></script><script src="app.js"></script>
+<script src="data.js"></script><script src="app.js?v=reader"></script>
 </body>
 </html>

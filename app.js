@@ -250,7 +250,44 @@ byId('export').onclick = () => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url),1000);
 };
+const reader = byId('reader');
+const readerScroll = byId('reader-scroll');
+const readerImage = byId('reader-image');
+const zoomLevels = [100, 125, 150, 175, 200, 250];
+let zoomIndex = 1;
+
+function updateReaderZoom(index) {
+  const oldWidth = readerImage.clientWidth;
+  const oldHeight = readerImage.clientHeight;
+  const left = readerScroll.scrollLeft;
+  const top = readerScroll.scrollTop;
+  zoomIndex = Math.max(0, Math.min(zoomLevels.length - 1, index));
+  const zoom = zoomLevels[zoomIndex] + '%';
+  readerScroll.style.setProperty('--reader-zoom', zoom);
+  byId('zoom-value').textContent = zoom;
+  byId('zoom-out').disabled = zoomIndex === 0;
+  byId('zoom-in').disabled = zoomIndex === zoomLevels.length - 1;
+  if (oldWidth) readerScroll.scrollLeft = left * readerImage.clientWidth / oldWidth;
+  if (oldHeight) readerScroll.scrollTop = top * readerImage.clientHeight / oldHeight;
+}
+
+function openReader(sourceId, label) {
+  const source = byId(sourceId);
+  readerImage.src = source.src;
+  readerImage.alt = source.alt;
+  byId('reader-title').textContent = label;
+  reader.showModal();
+  updateReaderZoom(window.matchMedia('(max-width: 720px)').matches ? 2 : 1);
+  readerScroll.scrollTo(0, 0);
+}
+
+byId('read-prompt').onclick = () => openReader('prompt', '题目 · 放大阅读');
+byId('read-answer').onclick = () => openReader('answer', '参考答案 · 放大阅读');
+byId('zoom-out').onclick = () => updateReaderZoom(zoomIndex - 1);
+byId('zoom-in').onclick = () => updateReaderZoom(zoomIndex + 1);
+
 document.addEventListener('keydown', event => {
+  if (reader.open) return;
   if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest('input, select, textarea')) return;
   if (event.code === 'Space' && !event.target.closest('button, a') && queue.length) {
     event.preventDefault();
