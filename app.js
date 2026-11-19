@@ -107,6 +107,48 @@ function filter({keepPosition = false} = {}) {
   render();
 }
 
+let useOriginalLayout = false;
+
+function drawRecognizedSide(question, side) {
+  const isPrompt = side === 'q';
+  const image = byId(isPrompt ? 'prompt' : 'answer');
+  const layout = byId(isPrompt ? 'prompt-layout' : 'answer-layout');
+  const simplified = REFLOW[question.deck.id]?.[question.number + side];
+  const useRecognized = Boolean(simplified) && !useOriginalLayout;
+  image.hidden = useRecognized;
+  layout.hidden = !useRecognized;
+  if (!useRecognized || layout.dataset.source === image.src) return;
+
+  const [width, height, blocks] = simplified;
+  const fragments = document.createDocumentFragment();
+  for (const block of blocks) {
+    if (typeof block === 'string') {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = block;
+      fragments.append(paragraph);
+    } else {
+      const [top, bottom] = block;
+      const viewport = document.createElement('div');
+      viewport.className = 'source-fragment';
+      viewport.style.aspectRatio = width + ' / ' + (bottom - top);
+      const fragmentImage = document.createElement('img');
+      fragmentImage.src = image.src;
+      fragmentImage.alt = '原题区域，可能包含公式、图示或文字';
+      fragmentImage.style.top = -(top / (bottom - top) * 100) + '%';
+      fragmentImage.style.height = height / (bottom - top) * 100 + '%';
+      viewport.append(fragmentImage);
+      fragments.append(viewport);
+    }
+  }
+  layout.replaceChildren(fragments);
+  layout.dataset.source = image.src;
+}
+
+byId('layout-toggle').onclick = () => {
+  useOriginalLayout = !useOriginalLayout;
+  render();
+};
+
 function render() {
   const question = queue[index];
   showDailyProgress();
@@ -128,6 +170,13 @@ function render() {
   byId('star').setAttribute('aria-pressed', starred);
   byId('prompt').src = question.image;
   byId('prompt').alt = question.deck.name + '，' + title + '原题';
+  drawRecognizedSide(question, 'q');
+  const layouts = REFLOW[question.deck.id];
+  const anyLayout = layouts?.[question.number + 'q'] || (revealed && layouts?.[question.number + 'a']);
+  const toggle = byId('layout-toggle');
+  toggle.hidden = !anyLayout;
+  toggle.textContent = useOriginalLayout ? '切换文字排版' : '查看原图排版';
+  toggle.setAttribute('aria-pressed', useOriginalLayout);
   const pdfPath = `assets/${question.deck.id}-q.pdf`;
   byId('original').href = (typeof offlinePDF === 'function' ? offlinePDF(pdfPath) : pdfPath) + '#page=' + question.page;
   byId('prev').disabled = index === 0;
@@ -148,6 +197,7 @@ function render() {
     }
     byId('answer').src = question.answer;
     byId('answer').alt = question.deck.name + '，' + title + '参考答案';
+    drawRecognizedSide(question, 'a');
   }
 }
 
