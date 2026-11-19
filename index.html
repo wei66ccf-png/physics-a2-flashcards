@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 大学物理 A2</title>
-<link rel="stylesheet" href="style.css?v=hybrid">
+<link rel="stylesheet" href="style.css?v=reader">
 </head>
 <body>
 <aside>
@@ -47,12 +47,11 @@
     <div class="cardhead">
       <div><p id="chapter"></p><h2 id="title"></h2></div>
       <div class="card-controls">
-        <button class="outline" id="layout-toggle" aria-pressed="false" hidden>切换原图</button>
         <button class="primary" id="read-prompt" aria-haspopup="dialog">放大阅读</button>
         <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
       </div>
     </div>
-    <div id="paper"><img id="prompt" alt=""><div id="prompt-layout" class="recognized-layout" hidden></div></div>
+    <div id="paper"><img id="prompt" alt=""></div>
     <section id="solution" hidden>
       <div class="solutionhead">
         <h3>本题参考答案</h3>
@@ -61,7 +60,7 @@
           <button class="outline" id="hide">收起答案</button>
         </div>
       </div>
-      <img id="answer" alt=""><div id="answer-layout" class="recognized-layout" hidden></div>
+      <img id="answer" alt="">
     </section>
     <div class="actions">
       <button id="reveal" class="primary">查看本题答案 <kbd>空格</kbd></button>
@@ -98,6 +97,6 @@
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script src="data.js"></script><script src="reflow.js?v=hybrid"></script><script src="app.js?v=hybrid"></script>
+<script src="data.js"></script><script src="app.js?v=reader"></script>
 </body>
 </html>
