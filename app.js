@@ -127,6 +127,8 @@ function render() {
   byId('star').textContent = starred ? '★ 取消收藏' : '☆ 收藏本题';
   byId('star').setAttribute('aria-pressed', starred);
   byId('prompt').src = question.image;
+  const promptCard = `${question.deck.id}:q:${question.number}`;
+  if (byId('prompt-document').dataset.card !== promptCard) byId('prompt-document').dataset.card = promptCard;
   byId('prompt').alt = question.deck.name + '，' + title + '原题';
   const pdfPath = `assets/${question.deck.id}-q.pdf`;
   byId('original').href = (typeof offlinePDF === 'function' ? offlinePDF(pdfPath) : pdfPath) + '#page=' + question.page;
@@ -147,6 +149,8 @@ function render() {
           : schedule.intervalDays + ' 天后复习';
     }
     byId('answer').src = question.answer;
+    const answerCard = `${question.deck.id}:a:${question.number}`;
+    if (byId('answer-document').dataset.card !== answerCard) byId('answer-document').dataset.card = answerCard;
     byId('answer').alt = question.deck.name + '，' + title + '参考答案';
   }
 }
@@ -253,12 +257,13 @@ byId('export').onclick = () => {
 const reader = byId('reader');
 const readerScroll = byId('reader-scroll');
 const readerImage = byId('reader-image');
+const readerDocument = byId('reader-document');
 const zoomLevels = [100, 125, 150, 175, 200, 250];
 let zoomIndex = 1;
 
 function updateReaderZoom(index) {
-  const oldWidth = readerImage.clientWidth;
-  const oldHeight = readerImage.clientHeight;
+  const oldWidth = readerDocument.clientWidth;
+  const oldHeight = readerDocument.clientHeight;
   const left = readerScroll.scrollLeft;
   const top = readerScroll.scrollTop;
   zoomIndex = Math.max(0, Math.min(zoomLevels.length - 1, index));
@@ -267,14 +272,15 @@ function updateReaderZoom(index) {
   byId('zoom-value').textContent = zoom;
   byId('zoom-out').disabled = zoomIndex === 0;
   byId('zoom-in').disabled = zoomIndex === zoomLevels.length - 1;
-  if (oldWidth) readerScroll.scrollLeft = left * readerImage.clientWidth / oldWidth;
-  if (oldHeight) readerScroll.scrollTop = top * readerImage.clientHeight / oldHeight;
+  if (oldWidth) readerScroll.scrollLeft = left * readerDocument.clientWidth / oldWidth;
+  if (oldHeight) readerScroll.scrollTop = top * readerDocument.clientHeight / oldHeight;
 }
 
 function openReader(sourceId, label) {
   const source = byId(sourceId);
   readerImage.src = source.src;
   readerImage.alt = source.alt;
+  readerDocument.dataset.card = source.closest('pdf-card').dataset.card;
   byId('reader-title').textContent = label;
   reader.showModal();
   updateReaderZoom(window.matchMedia('(max-width: 720px)').matches ? 2 : 1);

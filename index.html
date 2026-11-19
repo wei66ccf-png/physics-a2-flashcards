@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 大学物理 A2</title>
-<link rel="stylesheet" href="style.css?v=reader">
+<link rel="stylesheet" href="style.css?v=uniform">
 </head>
 <body>
 <aside>
@@ -51,7 +51,7 @@
         <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
       </div>
     </div>
-    <div id="paper"><img id="prompt" alt=""></div>
+    <div id="paper"><pdf-card id="prompt-document"><img id="prompt" alt=""></pdf-card></div>
     <section id="solution" hidden>
       <div class="solutionhead">
         <h3>本题参考答案</h3>
@@ -60,7 +60,7 @@
           <button class="outline" id="hide">收起答案</button>
         </div>
       </div>
-      <img id="answer" alt="">
+      <pdf-card id="answer-document"><img id="answer" alt=""></pdf-card>
     </section>
     <div class="actions">
       <button id="reveal" class="primary">查看本题答案 <kbd>空格</kbd></button>
@@ -93,10 +93,11 @@
     </div>
   </div>
   <div class="reader-scroll" id="reader-scroll" tabindex="0" aria-label="滚动查看放大的内容">
-    <img id="reader-image" alt="">
+    <pdf-card id="reader-document"><img id="reader-image" alt=""></pdf-card>
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script src="data.js"></script><script src="app.js?v=reader"></script>
+<script type="module" src="document-view.mjs?v=uniform"></script>
+<script src="data.js"></script><script src="app.js?v=uniform"></script>
 </body>
 </html>
