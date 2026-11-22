@@ -1,5 +1,7 @@
 const byId = id => document.getElementById(id);
-const all = DECKS.flatMap(deck => deck.questions.map(question => ({...question, deck})));
+const decks = [...DECKS, ...COMPLEX_DECKS];
+const courseNames = {physics:'大学物理 A2',complex:'复变函数',all:'全部课程'};
+const all = decks.flatMap(deck => deck.questions.map(question => ({...question, deck})));
 const modeButtons = [...document.querySelectorAll('[data-mode]')];
 const ratingButtons = [...document.querySelectorAll('[data-grade]')];
 const retryMinutes = 10;
@@ -16,14 +18,121 @@ try {
 byId('goal').value = target;
 byId('goal').max = all.length;
 let mode = 'today';
+let course = 'physics';
+try {
+  const storedCourse = localStorage.getItem('shiguang-course');
+  if (Object.hasOwn(courseNames, storedCourse)) course = storedCourse;
+} catch {}
+byId('course-select').value = course;
+const belongs = (question, key = course) => key === 'all' || (question.deck.course || 'physics') === key;
+const byQuestionId = new Map(all.map(q => [q.id,q]));
+let selected = [];
+try {
+  const saved = JSON.parse(localStorage.getItem('shiguang-exam') || '[]');
+  if (Array.isArray(saved)) selected = [...new Set(saved)].filter(id => byQuestionId.has(id));
+} catch {}
+const inExam = () => mode === 'exam';
 let queue = [];
 let index = 0;
 let revealed = false;
 let toastTimer;
 
-for (const deck of DECKS) {
-  byId('deck').append(new Option(deck.name, deck.id));
+function updateChapters() {
+  const dropdown = byId('deck');
+  dropdown.replaceChildren(new Option('全部章节', '0'));
+  for (const deck of decks) {
+    if (belongs({deck})) dropdown.append(new Option(deck.name, deck.id));
+  }
 }
+updateChapters();
+
+const examScope = byId('exam-scope');
+examScope.append(new Option('全部课程', 'all'),new Option(courseNames.physics,'physics'),new Option(courseNames.complex,'complex'));
+for (const deck of decks) examScope.append(new Option(deck.name, 'deck:' + deck.id));
+
+function eligible() {
+  const scope = examScope.value || 'all';
+  return all.filter(q => scope.startsWith('deck:') ? String(q.deck.id) === scope.slice(5) : belongs(q, scope));
+}
+
+function saveExam() {
+  try { localStorage.setItem('shiguang-exam', JSON.stringify(selected)); }
+  catch { toast('试卷只保留在当前页面'); }
+}
+
+function makeExamRow(question, picked) {
+  const li = document.createElement('li');
+  const label = document.createElement('button');
+  label.className = 'exam-preview';
+  label.onclick = () => previewQuestion(question);
+  label.textContent = `${question.deck.name} · 第 ${question.number} 题`;
+  const button = document.createElement('button');
+  button.className = 'outline';
+  button.textContent = picked ? '移除' : '加入';
+  button.setAttribute('aria-label', button.textContent + label.textContent);
+  button.onclick = () => {
+    selected = picked ? selected.filter(id => id !== question.id) : [...new Set([...selected,question.id])];
+    saveExam();
+    renderBuilder();
+  };
+  li.append(label,button);
+  return li;
+}
+
+function renderBuilder() {
+  const pool = eligible();
+  const term = byId('exam-query').value.trim().toLowerCase();
+  const available = pool.filter(q => !selected.includes(q.id) &&
+    `${q.deck.name} 第${q.number}题 ${q.number} ${q.text}`.toLowerCase().includes(term));
+  byId('exam-pool').replaceChildren(...available.map(q => makeExamRow(q,false)));
+  byId('exam-selection').replaceChildren(...selected.map(id => makeExamRow(byQuestionId.get(id),true)));
+  byId('exam-count').textContent = `${selected.length} 道`;
+  byId('exam-size').max = pool.length;
+  byId('exam-status').textContent = `范围内 ${pool.length} 道，当前可加入 ${available.length} 道`;
+  byId('exam-start').disabled = !selected.length;
+}
+
+function openMode(next) {
+  mode = next;
+  for (const control of modeButtons) control.setAttribute('aria-pressed', control.dataset.mode === (inExam() ? 'builder' : mode));
+  const builderOpen = mode === 'builder';
+  byId('builder').hidden = !builderOpen;
+  byId('study').hidden = builderOpen;
+  byId('exam-return').hidden = !inExam();
+  byId('shuffle').hidden = builderOpen || inExam();
+  byId('work-title').textContent = builderOpen ? '自由组卷' : inExam() ? '试卷练习' : courseNames[course];
+  if (builderOpen) {
+    byId('stats').textContent = '随机抽题，或从题库逐题添加';
+    renderBuilder();
+  } else filter();
+}
+
+examScope.onchange = () => renderBuilder();
+byId('exam-query').oninput = renderBuilder;
+byId('random-form').onsubmit = event => {
+  event.preventDefault();
+  const pool = eligible();
+  const n = Number(byId('exam-size').value);
+  if (!Number.isInteger(n) || n < 1 || n > pool.length) return;
+  for (let i = 0; i < n; i++) {
+    const j = i + Math.floor(Math.random() * (pool.length - i));
+    [pool[i],pool[j]] = [pool[j],pool[i]];
+  }
+  selected = pool.slice(0,n).map(q => q.id);
+  saveExam();
+  renderBuilder();
+  toast(`已随机抽取 ${n} 道题，可继续增删`);
+};
+byId('exam-start').onclick = () => { if (selected.length) openMode('exam'); };
+byId('exam-return').onclick = () => openMode('builder');
+byId('course-select').onchange = event => {
+  course = event.target.value;
+  try { localStorage.setItem('shiguang-course',course); } catch {}
+  byId('search').value = '';
+  updateChapters();
+  examScope.value = course;
+  openMode(mode === 'builder' ? 'builder' : 'today');
+};
 
 function toast(message) {
   byId('toast').textContent = message;
@@ -48,9 +157,10 @@ function dayKey(date = new Date()) {
 
 function dailyCounts(now = Date.now()) {
   const today = dayKey(new Date(now));
-  const completed = all.filter(q => records[q.id]?.reviewDay === today).length;
-  const due = all.filter(q => records[q.id]?.grade && records[q.id].due <= now);
-  const fresh = all.filter(q => !records[q.id]?.grade);
+  const scoped = all.filter(q => belongs(q));
+  const completed = scoped.filter(q => records[q.id]?.reviewDay === today).length;
+  const due = scoped.filter(q => records[q.id]?.grade && records[q.id].due <= now);
+  const fresh = scoped.filter(q => !records[q.id]?.grade);
   return {completed, due, fresh};
 }
 
@@ -99,9 +209,9 @@ function filter({keepPosition = false} = {}) {
   const term = byId('search').value.trim().toLowerCase().replace(/\s+/g, '');
   function matchesFilter(question) {
     const searchable = (question.text + question.deck.name + question.type).toLowerCase().replace(/\s+/g, '');
-    return (!deck || question.deck.id === deck) && searchable.includes(term) && matchesMode(question);
+    return belongs(question) && (!deck || question.deck.id === deck) && searchable.includes(term) && matchesMode(question);
   }
-  queue = mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
+  queue = inExam() ? selected.map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
   index = keepPosition && queue.length ? index % queue.length : 0;
   revealed = false;
   render();
@@ -110,8 +220,11 @@ function filter({keepPosition = false} = {}) {
 function render() {
   const question = queue[index];
   showDailyProgress();
-  const mastered = all.filter(q => ['good','easy'].includes(records[q.id]?.grade)).length;
-  byId('stats').textContent = `共 ${all.length} 道题 · 已掌握 ${mastered} 道`;
+  const scoped = all.filter(q => belongs(q));
+  const mastered = scoped.filter(q => ['good','easy'].includes(records[q.id]?.grade)).length;
+  byId('stats').textContent = inExam() ? `本卷 ${queue.length} 道题` : `共 ${scoped.length} 道题 · 已掌握 ${mastered} 道`;
+  byId('daily-section').hidden = inExam();
+  byId('study-filters').hidden = inExam();
   byId('card').hidden = !question;
   byId('empty').hidden = Boolean(question);
   byId('shuffle').disabled = mode === 'today' || queue.length < 2;
@@ -126,15 +239,23 @@ function render() {
   byId('title').textContent = title;
   byId('star').textContent = starred ? '★ 取消收藏' : '☆ 收藏本题';
   byId('star').setAttribute('aria-pressed', starred);
-  byId('prompt').src = question.image;
+  if (question.image) byId('prompt').src = question.image;
+  else byId('prompt').removeAttribute('src');
   const promptCard = `${question.deck.id}:q:${question.number}`;
   if (byId('prompt-document').dataset.card !== promptCard) byId('prompt-document').dataset.card = promptCard;
   byId('prompt').alt = question.deck.name + '，' + title + '原题';
-  const pdfPath = `assets/${question.deck.id}-q.pdf`;
-  byId('original').href = (typeof offlinePDF === 'function' ? offlinePDF(pdfPath) : pdfPath) + '#page=' + question.page;
+  const pdfPath = question.deck.source || `assets/${question.deck.id}-q.pdf`;
+  byId('original').href = ((typeof offlinePDF === 'function' && offlinePDF(pdfPath)) || pdfPath) + '#page=' + question.page;
   byId('prev').disabled = index === 0;
   byId('next').disabled = index === queue.length - 1;
-  byId('solution').hidden = !revealed;
+  const hasAnswer = Boolean(question.answer);
+  byId('solution').hidden = !revealed || !hasAnswer;
+  byId('no-answer').hidden = hasAnswer;
+  byId('reveal').firstChild.textContent = hasAnswer ? '查看本题答案 ' : '完成本题并自评 ';
+  byId('rating-title').textContent = hasAnswer ? '这道题掌握得怎么样？' : '你对本题的掌握程度';
+  byId('add-current').textContent = selected.includes(question.id) ? '已加入试卷' : '加入试卷';
+  byId('add-current').disabled = selected.includes(question.id);
+  byId('add-current').hidden = inExam();
   byId('rating').hidden = !revealed;
   byId('reveal').hidden = revealed;
   if (revealed) {
@@ -148,6 +269,7 @@ function render() {
           ? '下次 ' + new Intl.DateTimeFormat('zh-CN', {month:'numeric', day:'numeric'}).format(schedule.due)
           : schedule.intervalDays + ' 天后复习';
     }
+    if (!hasAnswer) return;
     byId('answer').src = question.answer;
     const answerCard = `${question.deck.id}:a:${question.number}`;
     if (byId('answer-document').dataset.card !== answerCard) byId('answer-document').dataset.card = answerCard;
@@ -167,7 +289,7 @@ function showAnswer(show) {
   if (!queue.length) return;
   revealed = show;
   render();
-  const target = byId(show ? 'hide' : 'reveal');
+  const target = byId(show ? queue[index].answer ? 'hide' : 'rating-first' : 'reveal');
   target.focus({preventScroll:true});
   target.scrollIntoView({block:'nearest'});
 }
@@ -210,13 +332,17 @@ byId('start-today').onclick = () => {
 };
 
 for (const button of modeButtons) {
-  button.onclick = () => {
-    mode = button.dataset.mode;
-    for (const control of modeButtons) control.setAttribute('aria-pressed', control === button);
-    filter();
-  };
+  button.onclick = () => openMode(button.dataset.mode);
 }
 for (const button of ratingButtons) button.onclick = () => grade(button.dataset.grade);
+byId('add-current').onclick = () => {
+  const question = queue[index];
+  if (!question || selected.includes(question.id)) return;
+  selected.push(question.id);
+  saveExam();
+  render();
+  toast('已加入试卷');
+};
 byId('deck').onchange = () => filter();
 byId('search').oninput = () => filter();
 byId('reveal').onclick = () => showAnswer(true);
@@ -278,9 +404,22 @@ function updateReaderZoom(index) {
 
 function openReader(sourceId, label) {
   const source = byId(sourceId);
-  readerImage.src = source.src;
+  if (source.hasAttribute('src')) readerImage.src = source.src;
+  else readerImage.removeAttribute('src');
   readerImage.alt = source.alt;
   readerDocument.dataset.card = source.closest('pdf-card').dataset.card;
+  showReader(label);
+}
+
+function previewQuestion(question) {
+  if (question.image) readerImage.src = question.image;
+  else readerImage.removeAttribute('src');
+  readerImage.alt = question.deck.name + ' · 第 ' + question.number + ' 题';
+  readerDocument.dataset.card = `${question.deck.id}:q:${question.number}`;
+  showReader(readerImage.alt);
+}
+
+function showReader(label) {
   byId('reader-title').textContent = label;
   reader.showModal();
   updateReaderZoom(window.matchMedia('(max-width: 720px)').matches ? 2 : 1);
@@ -293,7 +432,7 @@ byId('zoom-out').onclick = () => updateReaderZoom(zoomIndex - 1);
 byId('zoom-in').onclick = () => updateReaderZoom(zoomIndex + 1);
 
 document.addEventListener('keydown', event => {
-  if (reader.open) return;
+  if (reader.open || mode === 'builder') return;
   if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest('input, select, textarea')) return;
   if (event.code === 'Space' && !event.target.closest('button, a') && queue.length) {
     event.preventDefault();
@@ -303,7 +442,8 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowRight') move(1);
   if (revealed && ['1','2','3'].includes(event.key)) grade(['hard','good','easy'][Number(event.key)-1]);
 });
-filter();
+examScope.value = course;
+openMode('today');
 let displayedDay = dayKey();
 setInterval(() => {
   const today = dayKey();

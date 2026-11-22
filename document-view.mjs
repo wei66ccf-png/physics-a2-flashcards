@@ -30,7 +30,11 @@ class PdfCard extends HTMLElement {
     this.surface = document.createElement('div');
     this.surface.className = 'pdf-surface';
     this.surface.hidden = true;
-    this.append(this.surface);
+    this.status = document.createElement('p');
+    this.status.className = 'pdf-status';
+    this.status.setAttribute('role','status');
+    this.status.hidden = true;
+    this.append(this.surface, this.status);
     this.observer = new ResizeObserver(() => this.draw());
     this.observer.observe(this);
     this.draw();
@@ -47,6 +51,7 @@ class PdfCard extends HTMLElement {
     this.surface.hidden = true;
     this.fallback.hidden = false;
     this.lastDraw = '';
+    this.status.hidden = true;
     this.draw();
   }
 
@@ -57,6 +62,10 @@ class PdfCard extends HTMLElement {
     const key = card + ':' + width;
     if (key === this.lastDraw) return;
     this.lastDraw = key;
+    if (this.surface.hidden && !this.fallback.hasAttribute('src')) {
+      this.status.textContent = '正在加载题面…';
+      this.status.hidden = false;
+    }
     const generation = this.generation = (this.generation || 0) + 1;
     this.task?.cancel();
     const [deck, side, number] = card.split(':');
@@ -85,6 +94,7 @@ class PdfCard extends HTMLElement {
       this.surface.style.height = viewport.height + 'px';
       this.surface.replaceChildren(drawing, layer);
       this.surface.hidden = false;
+      this.status.hidden = true;
       this.fallback.hidden = true;
 
       const text = await page.getTextContent();
@@ -100,6 +110,10 @@ class PdfCard extends HTMLElement {
       await new TextLayer({textContentSource:text, container:layer, viewport}).render();
     } catch (error) {
       if (generation !== this.generation || error.name === 'RenderingCancelledException') return;
+      if (this.surface.hidden && !this.fallback.hasAttribute('src')) {
+        this.status.textContent = '题面加载失败，请刷新重试。';
+        this.status.hidden = false;
+      }
       console.warn('PDF card unavailable', error);
     }
   }

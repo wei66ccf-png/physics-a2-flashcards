@@ -3,13 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>拾光 · 大学物理 A2</title>
-<link rel="stylesheet" href="style.css?v=uniform">
+<title>拾光 · 复习室</title>
+<link rel="stylesheet" href="style.css?v=workbench">
 </head>
 <body>
 <aside>
   <a class="brand" href="">拾光</a>
-  <p class="course">大学物理 A2</p>
+  <p class="course">课程练习</p>
+  <label for="course-select">当前课程</label>
+  <select id="course-select"><option value="physics">大学物理 A2</option><option value="complex">复变函数</option><option value="all">全部课程</option></select>
   <nav aria-label="复习模式">
     <button data-mode="today" aria-pressed="true">今日复习</button>
     <button data-mode="all" aria-pressed="false">全部题目</button>
@@ -23,10 +25,34 @@
 </aside>
 <main>
   <header>
-    <div><h1>物理复习室</h1><p id="stats"></p></div>
+    <div><h1 id="work-title">课程练习</h1><p id="stats"></p></div>
     <button class="outline" id="shuffle">打乱题序</button>
   </header>
-  <section class="daily" aria-labelledby="daily-title">
+  <section id="builder" hidden aria-label="自由组卷">
+    <section class="exam-settings">
+      <label>选题范围 <select id="exam-scope"></select></label>
+      <form id="random-form">
+        <label>抽题数量 <input id="exam-size" type="number" min="1" value="10" required></label>
+        <button class="outline">随机组卷</button>
+      </form>
+      <p id="exam-status" role="status"></p>
+    </section>
+    <div class="exam-grid">
+      <section class="exam-panel">
+        <h2>题库</h2>
+        <label class="exam-search">查找题目 <input id="exam-query" type="search" placeholder="题号或章节"></label>
+        <ul id="exam-pool" class="exam-list"></ul>
+      </section>
+      <section class="exam-panel">
+        <div class="exam-panel-head"><h2>我的试卷</h2><span id="exam-count"></span></div>
+        <ul id="exam-selection" class="exam-list"></ul>
+        <button id="exam-start" class="primary">开始做卷</button>
+      </section>
+    </div>
+  </section>
+  <button id="exam-return" class="outline" hidden>返回编辑试卷</button>
+  <div id="study">
+  <section id="daily-section" class="daily" aria-labelledby="daily-title">
     <div class="daily-top">
       <div><h2 id="daily-title">今日目标</h2><p id="daily-progress" role="status"></p></div>
       <form id="goal-form">
@@ -40,7 +66,7 @@
     <button id="start-today" class="outline" hidden>进入今日复习</button>
   </section>
   <div class="toolbar">
-    <label class="search">搜索 <input id="search" type="search" placeholder="输入题目关键词"></label>
+    <label class="search" id="study-filters">搜索 <input id="search" type="search" placeholder="输入题目关键词"></label>
     <span id="position" aria-live="polite"></span>
   </div>
   <article id="card">
@@ -48,10 +74,12 @@
       <div><p id="chapter"></p><h2 id="title"></h2></div>
       <div class="card-controls">
         <button class="primary" id="read-prompt" aria-haspopup="dialog">放大阅读</button>
+        <button class="outline" id="add-current">加入试卷</button>
         <button class="outline" id="star" aria-pressed="false">☆ 收藏本题</button>
       </div>
     </div>
     <div id="paper"><pdf-card id="prompt-document"><img id="prompt" alt=""></pdf-card></div>
+    <p id="no-answer" hidden>习题集未附参考答案，可完成后自行评估。</p>
     <section id="solution" hidden>
       <div class="solutionhead">
         <h3>本题参考答案</h3>
@@ -65,9 +93,9 @@
     <div class="actions">
       <button id="reveal" class="primary">查看本题答案 <kbd>空格</kbd></button>
       <div id="rating" hidden>
-        <p>这道题掌握得怎么样？</p>
+        <p id="rating-title">这道题掌握得怎么样？</p>
         <div class="grades">
-          <button data-grade="hard" class="outline">还需练习 <kbd>1</kbd><small id="interval-hard"></small></button>
+          <button id="rating-first" data-grade="hard" class="outline">还需练习 <kbd>1</kbd><small id="interval-hard"></small></button>
           <button data-grade="good" class="outline">基本掌握 <kbd>2</kbd><small id="interval-good"></small></button>
           <button data-grade="easy" class="primary">熟练掌握 <kbd>3</kbd><small id="interval-easy"></small></button>
         </div>
@@ -80,6 +108,7 @@
     </div>
   </article>
   <p id="empty" hidden>没有符合条件的题目。可以切换章节或清除搜索词。</p>
+  </div>
   <footer>练习记录保存在当前浏览器。 <button id="reset">重置记录</button></footer>
 </main>
 <dialog class="reader" id="reader" aria-labelledby="reader-title">
@@ -97,7 +126,7 @@
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script type="module" src="document-view.mjs?v=uniform"></script>
-<script src="data.js"></script><script src="app.js?v=uniform"></script>
+<script type="module" src="document-view.mjs?v=workbench"></script>
+<script src="data.js"></script><script src="complex-data.js?v=workbench"></script><script src="app.js?v=workbench"></script>
 </body>
 </html>
