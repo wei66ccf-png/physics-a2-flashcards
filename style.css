@@ -246,3 +246,13 @@ h1 { font-size:clamp(1.85rem,4vw,2.8rem); }
 
 .exam-list .exam-preview { text-align:left; border:0; background:transparent; padding:4px 0; color:var(--accent); text-decoration:underline; }
 .pdf-status { padding:24px; text-align:center; color:var(--muted); }
+
+.extra-form {
+  display:flex; flex-wrap:wrap; align-items:center; gap:9px 14px;
+  margin-top:14px; padding-top:13px; border-top:1px solid var(--line);
+}
+.extra-form label { display:flex; align-items:center; gap:6px; }
+.extra-form select { width:auto; max-width:none; }
+.extra-form input { width:4.5rem; }
+#extra-hint { flex-basis:100%; color:var(--muted); font-size:.9rem; }
+#extra-return { margin-top:14px; }

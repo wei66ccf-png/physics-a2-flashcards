@@ -32,6 +32,8 @@ try {
   if (Array.isArray(saved)) selected = [...new Set(saved)].filter(id => byQuestionId.has(id));
 } catch {}
 const inExam = () => mode === 'exam';
+const inExtra = () => mode === 'extra';
+let extraBatch = null;
 let queue = [];
 let index = 0;
 let revealed = false;
@@ -94,13 +96,15 @@ function renderBuilder() {
 
 function openMode(next) {
   mode = next;
-  for (const control of modeButtons) control.setAttribute('aria-pressed', control.dataset.mode === (inExam() ? 'builder' : mode));
+  if (!inExtra()) extraBatch = null;
+  for (const control of modeButtons) control.setAttribute('aria-pressed', control.dataset.mode === (inExam() ? 'builder' : inExtra() ? 'today' : mode));
   const builderOpen = mode === 'builder';
   byId('builder').hidden = !builderOpen;
   byId('study').hidden = builderOpen;
   byId('exam-return').hidden = !inExam();
-  byId('shuffle').hidden = builderOpen || inExam();
-  byId('work-title').textContent = builderOpen ? '自由组卷' : inExam() ? '试卷练习' : courseNames[course];
+  byId('extra-return').hidden = !inExtra();
+  byId('shuffle').hidden = builderOpen || inExam() || inExtra();
+  byId('work-title').textContent = builderOpen ? '自由组卷' : inExam() ? '试卷练习' : inExtra() ? extraBatch.title : courseNames[course];
   if (builderOpen) {
     byId('stats').textContent = '随机抽题，或从题库逐题添加';
     renderBuilder();
@@ -193,8 +197,66 @@ function showDailyProgress() {
   byId('goal-progress').max = target;
   byId('goal-progress').value = Math.min(target, completed);
   byId('daily-plan').textContent = `已到期 ${due.length} 道 · 未练 ${fresh.length} 道 · 同一题每天只计一次`;
-  byId('start-today').hidden = mode === 'today';
+  byId('start-today').hidden = mode === 'today' || inExtra();
+  const mayAdd = mode === 'today' && completed >= target;
+  byId('extra-form').hidden = !mayAdd;
+  if (mayAdd && document.activeElement !== byId('extra-size')) updateExtraOptions();
 }
+
+function extraCandidates(kind) {
+  const now = Date.now();
+  const today = dayKey(new Date(now));
+  const scoped = all.filter(q => belongs(q));
+  if (kind === 'new') return scoped.filter(q => !records[q.id]?.grade);
+  const old = scoped.filter(q => records[q.id]?.grade);
+  return old.sort((a, b) => {
+    const first = records[a.id];
+    const second = records[b.id];
+    const firstDue = Number(first.due) || 0;
+    const secondDue = Number(second.due) || 0;
+    return Number(firstDue > now) - Number(secondDue > now) ||
+      Number(first.reviewDay === today) - Number(second.reviewDay === today) ||
+      firstDue - secondDue;
+  });
+}
+
+function updateExtraOptions() {
+  const fresh = extraCandidates('new').length;
+  const old = extraCandidates('review').length;
+  const kind = byId('extra-kind');
+  byId('extra-new-option').disabled = !fresh;
+  byId('extra-review-option').disabled = !old;
+  if (kind.value === 'new' && !fresh && old) kind.value = 'review';
+  if (kind.value === 'review' && !old && fresh) kind.value = 'new';
+  const isReview = kind.value === 'review';
+  const count = isReview ? old : fresh;
+  const size = byId('extra-size');
+  size.max = count;
+  size.disabled = !count;
+  if (count && (!size.value || Number(size.value) > count)) size.value = Math.min(count,5);
+  byId('extra-start').disabled = !count;
+  byId('extra-hint').textContent = count
+    ? `当前课程可选 ${count} 道${isReview ? '旧题，已到期优先' : '新题'}`
+    : '当前课程暂无可加练的题目';
+}
+
+byId('extra-kind').onchange = updateExtraOptions;
+byId('extra-return').onclick = () => openMode('today');
+byId('extra-form').onsubmit = event => {
+  event.preventDefault();
+  if (mode !== 'today' || dailyCounts().completed < target) return;
+  const kind = byId('extra-kind').value;
+  const count = Number(byId('extra-size').value);
+  const pool = extraCandidates(kind);
+  if (!Number.isInteger(count) || count < 1 || count > pool.length) return;
+  extraBatch = {
+    title: kind === 'new' ? '新题加练' : '旧题复习',
+    total: count,
+    pending: pool.slice(0,count),
+  };
+  openMode('extra');
+  byId('card').scrollIntoView({block:'start'});
+};
 
 function matchesMode(question) {
   const record = records[question.id];
@@ -211,7 +273,7 @@ function filter({keepPosition = false} = {}) {
     const searchable = (question.text + question.deck.name + question.type).toLowerCase().replace(/\s+/g, '');
     return belongs(question) && (!deck || question.deck.id === deck) && searchable.includes(term) && matchesMode(question);
   }
-  queue = inExam() ? selected.map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
+  queue = inExtra() ? extraBatch.pending : inExam() ? selected.map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
   index = keepPosition && queue.length ? index % queue.length : 0;
   revealed = false;
   render();
@@ -222,14 +284,14 @@ function render() {
   showDailyProgress();
   const scoped = all.filter(q => belongs(q));
   const mastered = scoped.filter(q => ['good','easy'].includes(records[q.id]?.grade)).length;
-  byId('stats').textContent = inExam() ? `本卷 ${queue.length} 道题` : `共 ${scoped.length} 道题 · 已掌握 ${mastered} 道`;
+  byId('stats').textContent = inExtra() ? `已完成 ${extraBatch.total - queue.length} / ${extraBatch.total} 道` : inExam() ? `本卷 ${queue.length} 道题` : `共 ${scoped.length} 道题 · 已掌握 ${mastered} 道`;
   byId('daily-section').hidden = inExam();
-  byId('study-filters').hidden = inExam();
+  byId('study-filters').hidden = inExam() || inExtra();
   byId('card').hidden = !question;
   byId('empty').hidden = Boolean(question);
   byId('shuffle').disabled = mode === 'today' || queue.length < 2;
   byId('empty').textContent = mode === 'today' && !byId('search').value && Number(byId('deck').value) === 0
-    ? dailyCounts().completed >= target ? '今日目标已完成。可以在全部题目中继续练习。' : '当前没有安排的题目。可在重点重练中加练，或稍后回来复习。'
+    ? dailyCounts().completed >= target ? '今日目标已完成。可在上方选择加练范围和题数。' : '当前没有安排的题目。可在重点重练中加练，或稍后回来复习。'
     : '没有符合条件的题目。可以切换章节或清除搜索词。';
   byId('position').textContent = question ? `第 ${index + 1} / ${queue.length} 题` : '0 道题';
   if (!question) return;
@@ -298,11 +360,32 @@ function grade(level) {
   const question = queue[index];
   if (!revealed || !question) return;
   const now = Date.now();
+  const wasBelowGoal = mode === 'today' && dailyCounts(now).completed < target;
   const schedule = reviewSchedule(records[question.id], level, now);
   records[question.id] = {...records[question.id], ...schedule, grade:level, reviewDay:dayKey(new Date(now))};
   if (save()) toast(level === 'hard' ? '已加入重点重练，10 分钟后到期' : '已安排下次复习');
-  if (mode === 'today') filter();
-  else if (!matchesMode(question)) filter({keepPosition:true});
+  if (inExtra()) {
+    extraBatch.pending = queue.filter(q => q.id !== question.id);
+    if (!extraBatch.pending.length) {
+      const finished = extraBatch.total;
+      openMode('today');
+      toast(`已完成 ${finished} 道加练`);
+      byId('extra-kind').focus({preventScroll:true});
+      byId('daily-section').scrollIntoView({block:'start'});
+      return;
+    }
+    queue = extraBatch.pending;
+    index = Math.min(index, queue.length - 1);
+    revealed = false;
+    render();
+  } else if (mode === 'today') {
+    filter();
+    if (wasBelowGoal && !byId('extra-form').hidden) {
+      byId('extra-kind').focus({preventScroll:true});
+      byId('daily-section').scrollIntoView({block:'start'});
+      return;
+    }
+  } else if (!matchesMode(question)) filter({keepPosition:true});
   else if (index < queue.length - 1) move(1, false);
   else showAnswer(false);
   if (queue.length) {

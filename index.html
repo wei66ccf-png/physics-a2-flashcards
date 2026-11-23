@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 复习室</title>
-<link rel="stylesheet" href="style.css?v=workbench">
+<link rel="stylesheet" href="style.css?v=extra">
 </head>
 <body>
 <aside>
@@ -50,6 +50,7 @@
       </section>
     </div>
   </section>
+  <button id="extra-return" class="outline" hidden>返回今日复习</button>
   <button id="exam-return" class="outline" hidden>返回编辑试卷</button>
   <div id="study">
   <section id="daily-section" class="daily" aria-labelledby="daily-title">
@@ -63,6 +64,18 @@
     </div>
     <progress id="goal-progress" aria-label="今日目标完成度"></progress>
     <p id="daily-plan"></p>
+    <form id="extra-form" class="extra-form" hidden aria-labelledby="extra-label">
+      <strong id="extra-label">达标后加练</strong>
+      <label>题目范围
+        <select id="extra-kind">
+          <option id="extra-new-option" value="new">再做新题</option>
+          <option id="extra-review-option" value="review">再复习旧题</option>
+        </select>
+      </label>
+      <label>题数 <input id="extra-size" type="number" min="1" step="1" value="5" required></label>
+      <button id="extra-start" class="primary" type="submit">开始加练</button>
+      <p id="extra-hint" aria-live="polite"></p>
+    </form>
     <button id="start-today" class="outline" hidden>进入今日复习</button>
   </section>
   <div class="toolbar">
@@ -126,7 +139,7 @@
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script type="module" src="document-view.mjs?v=workbench"></script>
-<script src="data.js"></script><script src="complex-data.js?v=workbench"></script><script src="app.js?v=workbench"></script>
+<script type="module" src="document-view.mjs?v=extra"></script>
+<script src="data.js"></script><script src="complex-data.js?v=extra"></script><script src="app.js?v=extra"></script>
 </body>
 </html>
