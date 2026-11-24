@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 复习室</title>
-<link rel="stylesheet" href="style.css?v=history-link">
+<link rel="stylesheet" href="style.css?v=workspace">
 </head>
 <body>
 <aside>
@@ -12,22 +12,18 @@
   <p class="course">课程练习</p>
   <label for="course-select">当前课程</label>
   <select id="course-select"><option value="physics">大学物理 A2</option><option value="complex">复变函数</option><option value="all">全部课程</option></select>
-  <nav aria-label="复习模式">
+  <nav class="workspace-nav" aria-label="学习工作区">
     <button data-mode="today" aria-pressed="true">今日复习</button>
-    <button data-mode="all" aria-pressed="false">全部题目</button>
-    <button data-mode="due">待复习</button>
-    <button data-mode="hard">重点重练</button>
-    <button data-mode="star">我的收藏</button>
+    <button data-mode="all" aria-pressed="false">题库</button>
+    <button data-mode="builder" aria-pressed="false">自由组卷</button>
+    <button data-mode="history" aria-pressed="false">练习历史</button>
   </nav>
-  <label for="deck">作业章节</label>
-  <select id="deck"><option value="0">全部作业</option></select>
   <button class="outline export" id="export">导出学习记录</button>
 </aside>
 <main>
   <header>
     <div><h1 id="work-title">课程练习</h1><p id="stats"></p></div>
     <div class="card-controls">
-      <button class="outline" id="history-shortcut" type="button">练习历史</button>
       <button class="outline" id="shuffle">打乱题序</button>
     </div>
   </header>
@@ -44,7 +40,7 @@
       <label>选题范围 <select id="exam-scope"></select></label>
       <form id="random-form">
         <label>抽题数量 <input id="exam-size" type="number" min="1" value="10" required></label>
-        <button class="outline">随机组卷</button>
+        <button class="outline" id="exam-random" type="submit">随机组卷</button>
       </form>
       <p id="exam-status" role="status"></p>
     </section>
@@ -63,6 +59,11 @@
   </section>
   <button id="extra-return" class="outline" hidden>返回今日复习</button>
   <button id="exam-return" class="outline" hidden>返回编辑试卷</button>
+  <section id="exam-finished" class="daily" hidden>
+    <h2>本卷已完成</h2><p id="exam-finished-summary"></p>
+    <button id="exam-finished-builder" class="outline" type="button">返回编辑试卷</button>
+    <button id="exam-finished-history" class="outline" type="button">查看练习历史</button>
+  </section>
   <div id="study">
   <section id="daily-section" class="daily" aria-labelledby="daily-title">
     <div class="daily-top">
@@ -85,14 +86,24 @@
       </label>
       <label>题数 <input id="extra-size" type="number" min="1" step="1" value="5" required></label>
       <button id="extra-start" class="primary" type="submit">开始加练</button>
+      <button id="extra-resume" class="outline" type="button" hidden>继续上次加练</button>
       <p id="extra-hint" aria-live="polite"></p>
     </form>
-    <button id="start-today" class="outline" hidden>进入今日复习</button>
   </section>
-  <div class="toolbar">
-    <label class="search" id="study-filters">搜索 <input id="search" type="search" placeholder="输入题目关键词"></label>
-    <span id="position" aria-live="polite"></span>
-  </div>
+  <section id="study-filters" class="library-controls" aria-label="题库筛选" hidden>
+    <nav class="library-tabs" aria-label="题库分类">
+      <button id="library-all" type="button" aria-pressed="true">全部</button>
+      <button data-mode="due" type="button" aria-pressed="false">已到期</button>
+      <button data-mode="hard" type="button" aria-pressed="false">重点重练</button>
+      <button data-mode="star" type="button" aria-pressed="false">收藏</button>
+    </nav>
+    <div class="library-inputs">
+      <label>章节 <select id="deck"><option value="0">全部章节</option></select></label>
+      <label class="search">搜索 <input id="search" type="search" placeholder="题号、章节或关键词"></label>
+      <button class="outline" id="clear-library" type="button">清除筛选</button>
+    </div>
+  </section>
+  <div class="toolbar"><span id="position" aria-live="polite"></span></div>
   <article id="card">
     <div class="cardhead">
       <div><p id="chapter"></p><h2 id="title"></h2></div>
@@ -150,7 +161,7 @@
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script type="module" src="document-view.mjs?v=history-link"></script>
-<script src="data.js"></script><script src="complex-data.js?v=history-link"></script><script src="app.js?v=history-link"></script>
+<script type="module" src="document-view.mjs?v=workspace"></script>
+<script src="data.js"></script><script src="complex-data.js?v=workspace"></script><script src="app.js?v=workspace"></script>
 </body>
 </html>

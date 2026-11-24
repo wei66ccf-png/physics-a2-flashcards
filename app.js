@@ -42,8 +42,54 @@ try {
   if (Array.isArray(saved)) selected = [...new Set(saved)].filter(id => byQuestionId.has(id));
 } catch {}
 const inExam = () => mode === 'exam';
+const inLibrary = () => ['all','due','hard','star'].includes(mode);
+const paperKey = 'shiguang-paper-progress';
+let examRun = null;
+
+function paperProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(paperKey) || 'null');
+    if (saved?.signature === selected.join(',') && Array.isArray(saved.done)) {
+      return new Set(saved.done.filter(id => selected.includes(id)));
+    }
+  } catch {}
+  return new Set();
+}
+
+function beginExam() {
+  if (!selected.length) return;
+  const done = paperProgress();
+  examRun = {signature:selected.join(','), done:done.size === selected.length ? new Set() : done};
+  savePaperProgress();
+  openMode('exam');
+}
+
+function savePaperProgress() {
+  try {
+    localStorage.setItem(paperKey, JSON.stringify({signature:examRun.signature,done:[...examRun.done]}));
+  } catch {}
+}
 const inExtra = () => mode === 'extra';
 let extraBatch = null;
+const extraKey = () => 'shiguang-extra-batch-' + course;
+
+function loadExtra() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(extraKey()) || 'null');
+    if (saved?.course !== course || saved.day !== dayKey() || !Array.isArray(saved.pending)) return null;
+    if (!['new','review'].includes(saved.kind) || !Number.isInteger(saved.total)) return null;
+    const pending = [...new Set(saved.pending)].map(id => byQuestionId.get(id))
+      .filter(q => q && belongs(q) && (saved.kind === 'review' || !hasPracticed(records[q.id])));
+    return pending.length ? {...saved,pending} : null;
+  } catch { return null; }
+}
+
+function saveExtra() {
+  try {
+    if (!extraBatch.pending.length) localStorage.removeItem(extraKey());
+    else localStorage.setItem(extraKey(), JSON.stringify({...extraBatch,course,day:dayKey(),pending:extraBatch.pending.map(q => q.id)}));
+  } catch {}
+}
 let queue = [];
 let index = 0;
 let revealed = false;
@@ -102,31 +148,45 @@ function renderBuilder() {
   byId('exam-size').max = pool.length;
   byId('exam-status').textContent = `范围内 ${pool.length} 道，当前可加入 ${available.length} 道`;
   byId('exam-start').disabled = !selected.length;
+  const completed = paperProgress().size;
+  byId('exam-start').textContent = completed && completed === selected.length ? '重新做卷' : completed ? `继续做卷（${completed}/${selected.length}）` : '开始做卷';
+  byId('exam-random').textContent = selected.length ? '随机替换试卷' : '随机组卷';
 }
+
+const modeRoutes = {today:'', all:'library', due:'due', hard:'hard', star:'favorites',
+  builder:'builder', history:'history', exam:'exam', extra:'extra'};
+const libraryTitles = {all:'题库', due:'已到期', hard:'重点重练', star:'我的收藏'};
 
 function openMode(next) {
   mode = next;
   if (!inExtra()) extraBatch = null;
-  for (const control of modeButtons) control.setAttribute('aria-pressed', control.dataset.mode === (inExam() ? 'builder' : inExtra() ? 'today' : mode));
+  const view = inExam() ? 'builder' : inExtra() ? 'today' : inLibrary() ? 'all' : mode;
+  for (const control of modeButtons) {
+    const active = ['due','hard','star'].includes(control.dataset.mode)
+      ? control.dataset.mode === mode : control.dataset.mode === view;
+    control.setAttribute('aria-pressed', active);
+  }
+  byId('library-all').setAttribute('aria-pressed', mode === 'all');
   const builderOpen = mode === 'builder';
-  byId('builder').hidden = !builderOpen;
   const historyOpen = mode === 'history';
-  const currentHash = window.location.hash;
-  const desiredHash = historyOpen ? '#history' : currentHash === '#history' ? '' : currentHash;
-  if (currentHash !== desiredHash) {
+  const route = modeRoutes[mode];
+  const desiredHash = route ? '#' + route : '';
+  if (window.location.hash !== desiredHash) {
     try {
       const url = new URL(window.location.href);
       url.hash = desiredHash;
       window.history.replaceState(null, '', url.href);
     } catch {}
   }
-  byId('history-shortcut').textContent = historyOpen ? '返回今日复习' : '练习历史';
   byId('history').hidden = !historyOpen;
+  byId('builder').hidden = !builderOpen;
   byId('study').hidden = builderOpen || historyOpen;
+  byId('exam-finished').hidden = true;
   byId('exam-return').hidden = !inExam();
   byId('extra-return').hidden = !inExtra();
-  byId('shuffle').hidden = builderOpen || historyOpen || inExam() || inExtra();
-  byId('work-title').textContent = builderOpen ? '自由组卷' : historyOpen ? '练习历史' : inExam() ? '试卷练习' : inExtra() ? extraBatch.title : courseNames[course];
+  byId('shuffle').hidden = !inLibrary();
+  byId('work-title').textContent = builderOpen ? '自由组卷' : historyOpen ? '练习历史'
+    : inExam() ? '试卷练习' : inExtra() ? extraBatch.title : libraryTitles[mode] || '今日复习';
   if (builderOpen) {
     byId('stats').textContent = '随机抽题，或从题库逐题添加';
     renderBuilder();
@@ -135,6 +195,21 @@ function openMode(next) {
     byId('stats').textContent = courseNames[course];
     renderHistory();
   } else filter();
+}
+
+function modeFromUrl() {
+  const hash = window.location.hash.slice(1);
+  const key = Object.keys(modeRoutes).find(k => modeRoutes[k] === hash);
+  if (key === 'extra') {
+    refreshRecords();
+    extraBatch = loadExtra();
+    return extraBatch ? 'extra' : 'today';
+  }
+  if (key === 'exam') {
+    if (!selected.length) return 'builder';
+    examRun = {signature:selected.join(','), done:paperProgress()};
+  }
+  return key || 'today';
 }
 
 examScope.onchange = () => renderBuilder();
@@ -153,15 +228,23 @@ byId('random-form').onsubmit = event => {
   renderBuilder();
   toast(`已随机抽取 ${n} 道题，可继续增删`);
 };
-byId('exam-start').onclick = () => { if (selected.length) openMode('exam'); };
+byId('exam-start').onclick = beginExam;
 byId('exam-return').onclick = () => openMode('builder');
+byId('exam-finished-builder').onclick = () => openMode('builder');
+byId('exam-finished-history').onclick = () => openMode('history');
+byId('library-all').onclick = () => openMode('all');
+byId('clear-library').onclick = () => {
+  byId('search').value = '';
+  byId('deck').value = '0';
+  filter();
+};
 byId('course-select').onchange = event => {
   course = event.target.value;
   try { localStorage.setItem('shiguang-course',course); } catch {}
   byId('search').value = '';
   updateChapters();
   examScope.value = course;
-  openMode(['builder','history'].includes(mode) ? mode : 'today');
+  openMode(inLibrary() || ['builder','history'].includes(mode) ? mode : 'today');
 };
 
 function toast(message) {
@@ -214,8 +297,8 @@ function todayQueue(matchesFilter) {
   due.sort((a, b) => records[a.id].due - records[b.id].due);
   const today = dayKey();
   const pendingDue = due.filter(q => records[q.id].reviewDay !== today);
-  const newSlots = Math.max(0, target - completed - pendingDue.length);
-  return pendingDue.filter(matchesFilter).concat(fresh.filter(matchesFilter).slice(0, newSlots));
+  const remaining = Math.max(0, target - completed);
+  return pendingDue.filter(matchesFilter).concat(fresh.filter(matchesFilter)).slice(0, remaining);
 }
 
 function showDailyProgress() {
@@ -223,10 +306,12 @@ function showDailyProgress() {
   byId('daily-progress').textContent = `${completed} / ${target} 道${completed >= target ? ' · 已达标' : ''}`;
   byId('goal-progress').max = target;
   byId('goal-progress').value = Math.min(target, completed);
-  byId('daily-plan').textContent = `已到期 ${due.length} 道 · 未练 ${fresh.length} 道 · 同一题每天只计一次`;
-  byId('start-today').hidden = mode === 'today' || inExtra();
+  const pending = due.filter(q => records[q.id].reviewDay !== dayKey()).length;
+  byId('daily-plan').textContent = `待复习 ${pending} 道 · 新题 ${fresh.length} 道 · 同一天每题只计一次`;
+
   const mayAdd = mode === 'today' && completed >= target;
   byId('extra-form').hidden = !mayAdd;
+  byId('extra-resume').hidden = !mayAdd || !loadExtra();
   if (mayAdd && document.activeElement !== byId('extra-size')) updateExtraOptions();
 }
 
@@ -269,6 +354,12 @@ function updateExtraOptions() {
 
 byId('extra-kind').onchange = updateExtraOptions;
 byId('extra-return').onclick = () => openMode('today');
+byId('extra-resume').onclick = () => {
+  refreshRecords();
+  extraBatch = loadExtra();
+  if (extraBatch) openMode('extra');
+  else showDailyProgress();
+};
 byId('extra-form').onsubmit = event => {
   event.preventDefault();
   refreshRecords();
@@ -278,10 +369,12 @@ byId('extra-form').onsubmit = event => {
   const pool = extraCandidates(kind);
   if (!Number.isInteger(count) || count < 1 || count > pool.length) return;
   extraBatch = {
+    kind,
     title: kind === 'new' ? '新题加练' : '旧题复习',
     total: count,
     pending: pool.slice(0,count),
   };
+  saveExtra();
   openMode('extra');
   byId('card').scrollIntoView({block:'start'});
 };
@@ -300,9 +393,10 @@ function filter({keepPosition = false} = {}) {
   const term = byId('search').value.trim().toLowerCase().replace(/\s+/g, '');
   function matchesFilter(question) {
     const searchable = (question.text + question.deck.name + question.type).toLowerCase().replace(/\s+/g, '');
+    if (mode === 'today') return belongs(question);
     return belongs(question) && (!deck || question.deck.id === deck) && searchable.includes(term) && matchesMode(question);
   }
-  queue = inExtra() ? extraBatch.pending : inExam() ? selected.map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
+  queue = inExtra() ? extraBatch.pending : inExam() ? selected.filter(id => !examRun.done.has(id)).map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
   index = keepPosition && queue.length ? index % queue.length : 0;
   revealed = false;
   render();
@@ -313,15 +407,22 @@ function render() {
   showDailyProgress();
   const scoped = all.filter(q => belongs(q));
   const mastered = scoped.filter(q => ['good','easy'].includes(records[q.id]?.grade)).length;
-  byId('stats').textContent = inExtra() ? `已完成 ${extraBatch.total - queue.length} / ${extraBatch.total} 道` : inExam() ? `本卷 ${queue.length} 道题` : `共 ${scoped.length} 道题 · 已掌握 ${mastered} 道`;
-  byId('daily-section').hidden = inExam();
-  byId('study-filters').hidden = inExam() || inExtra();
+  byId('stats').textContent = inExtra() ? `已完成 ${extraBatch.total - queue.length} / ${extraBatch.total} 道` : inExam() ? `已完成 ${examRun.done.size} / ${selected.length} 道` : `${courseNames[course]} · ${scoped.length} 道题 · 已掌握 ${mastered} 道`;
+  byId('daily-section').hidden = mode !== 'today';
+  byId('study-filters').hidden = !inLibrary();
+  const paperComplete = inExam() && !queue.length;
+  byId('exam-finished').hidden = !paperComplete;
+  byId('study').hidden = paperComplete;
+  if (paperComplete) {
+    byId('exam-finished-summary').textContent = `已完成全部 ${selected.length} 道题，评分可在练习历史查看。`;
+    return;
+  }
   byId('card').hidden = !question;
   byId('empty').hidden = Boolean(question);
   byId('shuffle').disabled = mode === 'today' || queue.length < 2;
-  byId('empty').textContent = mode === 'today' && !byId('search').value && Number(byId('deck').value) === 0
+  byId('empty').textContent = mode === 'today'
     ? dailyCounts().completed >= target ? '今日目标已完成。可在上方选择加练范围和题数。' : '当前没有安排的题目。可在重点重练中加练，或稍后回来复习。'
-    : '没有符合条件的题目。可以切换章节或清除搜索词。';
+    : '没有符合条件的题目。可切换分类或清除筛选。';
   byId('position').textContent = question ? `第 ${index + 1} / ${queue.length} 题` : '0 道题';
   if (!question) return;
   const title = `第 ${question.number} 题 · ${question.type}`;
@@ -390,15 +491,34 @@ function grade(level) {
   if (!revealed || !question) return;
   refreshRecords();
   const now = Date.now();
+  const day = dayKey(new Date(now));
+  const prior = records[question.id];
+  if ((mode === 'today' && prior?.reviewDay === day) || (inExtra() && extraBatch.kind === 'new' && hasPracticed(prior))) {
+    if (inExtra()) {
+      extraBatch.pending = extraBatch.pending.filter(q => q.id !== question.id);
+      saveExtra();
+      if (!extraBatch.pending.length) openMode('today');
+      else filter();
+    } else filter();
+    toast('这道题已在另一个页面练习，已跳过');
+    return;
+  }
   const wasBelowGoal = mode === 'today' && dailyCounts(now).completed < target;
   const schedule = reviewSchedule(records[question.id], level, now);
-  const prior = records[question.id];
-  const day = dayKey(new Date(now));
   const attempts = attemptsFor(prior).concat({day, at:now, grade:level});
   records[question.id] = {...prior, ...schedule, grade:level, reviewDay:day, lastReviewedAt:now, attempts};
   if (save()) toast(level === 'hard' ? '已加入重点重练，10 分钟后到期' : '已安排下次复习');
-  if (inExtra()) {
+  if (inExam()) {
+    examRun.done.add(question.id);
+    savePaperProgress();
+    filter();
+    if (!queue.length) {
+      byId('exam-finished-builder').focus();
+      return;
+    }
+  } else if (inExtra()) {
     extraBatch.pending = queue.filter(q => q.id !== question.id);
+    saveExtra();
     if (!extraBatch.pending.length) {
       const finished = extraBatch.total;
       openMode('today');
@@ -441,12 +561,6 @@ byId('goal-form').onsubmit = event => {
   if (mode === 'today' && !revealed) filter();
   else showDailyProgress();
 };
-byId('start-today').onclick = () => {
-  byId('search').value = '';
-  byId('deck').value = '0';
-  modeButtons.find(button => button.dataset.mode === 'today').click();
-};
-
 for (const button of modeButtons) {
   button.onclick = () => openMode(button.dataset.mode);
 }
@@ -610,11 +724,7 @@ function renderHistory() {
   byId('history-list').replaceChildren(...blocks);
 }
 
-byId('history-shortcut').onclick = () => openMode(mode === 'history' ? 'today' : 'history');
-window.addEventListener('hashchange', () => {
-  if (window.location.hash === '#history' && mode !== 'history') openMode('history');
-  else if (window.location.hash !== '#history' && mode === 'history') openMode('today');
-});
+window.addEventListener('hashchange', () => openMode(modeFromUrl()));
 byId('history-date').onchange = renderHistory;
 byId('history-clear-date').onclick = () => {
   byId('history-date').value = '';
@@ -627,11 +737,11 @@ window.addEventListener('storage', event => {
   if (mode === 'today' && !revealed) filter();
 });
 examScope.value = course;
-openMode(window.location.hash === '#history' ? 'history' : 'today');
+openMode(modeFromUrl());
 let displayedDay = dayKey();
 setInterval(() => {
   const today = dayKey();
   if (!revealed && mode === 'today' && (today !== displayedDay || !queue.length)) filter();
-  else showDailyProgress();
+  else if (mode === 'today') showDailyProgress();
   if (!revealed) displayedDay = today;
 }, 30000);
