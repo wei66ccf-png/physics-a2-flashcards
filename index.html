@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>拾光 · 复习室</title>
-<link rel="stylesheet" href="style.css?v=extra">
+<link rel="stylesheet" href="style.css?v=history">
 </head>
 <body>
 <aside>
@@ -28,6 +28,14 @@
     <div><h1 id="work-title">课程练习</h1><p id="stats"></p></div>
     <button class="outline" id="shuffle">打乱题序</button>
   </header>
+  <section id="history" hidden aria-label="练习历史">
+    <div class="history-tools">
+      <label>日期 <input id="history-date" type="date"></label>
+      <button id="history-clear-date" class="outline" type="button">查看全部日期</button>
+      <p id="history-summary" role="status"></p>
+    </div>
+    <div id="history-list"></div>
+  </section>
   <section id="builder" hidden aria-label="自由组卷">
     <section class="exam-settings">
       <label>选题范围 <select id="exam-scope"></select></label>
@@ -139,7 +147,7 @@
   </div>
 </dialog>
 <div id="toast" role="status"></div>
-<script type="module" src="document-view.mjs?v=extra"></script>
-<script src="data.js"></script><script src="complex-data.js?v=extra"></script><script src="app.js?v=extra"></script>
+<script type="module" src="document-view.mjs?v=history"></script>
+<script src="data.js"></script><script src="complex-data.js?v=history"></script><script src="app.js?v=history"></script>
 </body>
 </html>

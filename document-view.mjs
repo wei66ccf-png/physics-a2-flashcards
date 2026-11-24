@@ -48,6 +48,9 @@ class PdfCard extends HTMLElement {
 
   attributeChangedCallback() {
     if (!this.surface) return;
+    this.generation = (this.generation || 0) + 1;
+    this.task?.cancel();
+    this.surface.replaceChildren();
     this.surface.hidden = true;
     this.fallback.hidden = false;
     this.lastDraw = '';

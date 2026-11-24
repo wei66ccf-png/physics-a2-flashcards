@@ -8,8 +8,18 @@ const retryMinutes = 10;
 const maxIntervalDays = 60;
 const goalKey = 'shiguang-a2-daily-goal';
 const storageKey = 'shiguang-a2-questions';
+function readRecords() {
+  const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+  return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+}
 let records = {};
-try { records = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch {}
+try { records = readRecords(); } catch {}
+
+function refreshRecords() {
+  try { records = {...records, ...readRecords()}; } catch {}
+}
+
+const hasPracticed = record => Boolean(record?.grade || record?.reviewDay || record?.attempts?.length);
 let target = 10;
 try {
   const savedTarget = Number(localStorage.getItem(goalKey));
@@ -100,14 +110,20 @@ function openMode(next) {
   for (const control of modeButtons) control.setAttribute('aria-pressed', control.dataset.mode === (inExam() ? 'builder' : inExtra() ? 'today' : mode));
   const builderOpen = mode === 'builder';
   byId('builder').hidden = !builderOpen;
-  byId('study').hidden = builderOpen;
+  const historyOpen = mode === 'history';
+  byId('history').hidden = !historyOpen;
+  byId('study').hidden = builderOpen || historyOpen;
   byId('exam-return').hidden = !inExam();
   byId('extra-return').hidden = !inExtra();
-  byId('shuffle').hidden = builderOpen || inExam() || inExtra();
-  byId('work-title').textContent = builderOpen ? '自由组卷' : inExam() ? '试卷练习' : inExtra() ? extraBatch.title : courseNames[course];
+  byId('shuffle').hidden = builderOpen || historyOpen || inExam() || inExtra();
+  byId('work-title').textContent = builderOpen ? '自由组卷' : historyOpen ? '练习历史' : inExam() ? '试卷练习' : inExtra() ? extraBatch.title : courseNames[course];
   if (builderOpen) {
     byId('stats').textContent = '随机抽题，或从题库逐题添加';
     renderBuilder();
+  } else if (historyOpen) {
+    refreshRecords();
+    byId('stats').textContent = courseNames[course];
+    renderHistory();
   } else filter();
 }
 
@@ -135,7 +151,7 @@ byId('course-select').onchange = event => {
   byId('search').value = '';
   updateChapters();
   examScope.value = course;
-  openMode(mode === 'builder' ? 'builder' : 'today');
+  openMode(['builder','history'].includes(mode) ? mode : 'today');
 };
 
 function toast(message) {
@@ -164,7 +180,7 @@ function dailyCounts(now = Date.now()) {
   const scoped = all.filter(q => belongs(q));
   const completed = scoped.filter(q => records[q.id]?.reviewDay === today).length;
   const due = scoped.filter(q => records[q.id]?.grade && records[q.id].due <= now);
-  const fresh = scoped.filter(q => !records[q.id]?.grade);
+  const fresh = scoped.filter(q => !hasPracticed(records[q.id]));
   return {completed, due, fresh};
 }
 
@@ -186,9 +202,10 @@ function reviewSchedule(record, grade, now = Date.now()) {
 function todayQueue(matchesFilter) {
   const {completed, due, fresh} = dailyCounts();
   due.sort((a, b) => records[a.id].due - records[b.id].due);
-  const uncountedDue = due.filter(q => records[q.id].reviewDay !== dayKey()).length;
-  const newSlots = Math.max(0, target - completed - uncountedDue);
-  return due.filter(matchesFilter).concat(fresh.filter(matchesFilter).slice(0, newSlots));
+  const today = dayKey();
+  const pendingDue = due.filter(q => records[q.id].reviewDay !== today);
+  const newSlots = Math.max(0, target - completed - pendingDue.length);
+  return pendingDue.filter(matchesFilter).concat(fresh.filter(matchesFilter).slice(0, newSlots));
 }
 
 function showDailyProgress() {
@@ -207,8 +224,8 @@ function extraCandidates(kind) {
   const now = Date.now();
   const today = dayKey(new Date(now));
   const scoped = all.filter(q => belongs(q));
-  if (kind === 'new') return scoped.filter(q => !records[q.id]?.grade);
-  const old = scoped.filter(q => records[q.id]?.grade);
+  if (kind === 'new') return scoped.filter(q => !hasPracticed(records[q.id]));
+  const old = scoped.filter(q => hasPracticed(records[q.id]));
   return old.sort((a, b) => {
     const first = records[a.id];
     const second = records[b.id];
@@ -216,7 +233,7 @@ function extraCandidates(kind) {
     const secondDue = Number(second.due) || 0;
     return Number(firstDue > now) - Number(secondDue > now) ||
       Number(first.reviewDay === today) - Number(second.reviewDay === today) ||
-      firstDue - secondDue;
+      (first.lastReviewedAt || 0) - (second.lastReviewedAt || 0) || firstDue - secondDue;
   });
 }
 
@@ -244,6 +261,7 @@ byId('extra-kind').onchange = updateExtraOptions;
 byId('extra-return').onclick = () => openMode('today');
 byId('extra-form').onsubmit = event => {
   event.preventDefault();
+  refreshRecords();
   if (mode !== 'today' || dailyCounts().completed < target) return;
   const kind = byId('extra-kind').value;
   const count = Number(byId('extra-size').value);
@@ -267,6 +285,7 @@ function matchesMode(question) {
 }
 
 function filter({keepPosition = false} = {}) {
+  refreshRecords();
   const deck = Number(byId('deck').value);
   const term = byId('search').value.trim().toLowerCase().replace(/\s+/g, '');
   function matchesFilter(question) {
@@ -359,10 +378,14 @@ function showAnswer(show) {
 function grade(level) {
   const question = queue[index];
   if (!revealed || !question) return;
+  refreshRecords();
   const now = Date.now();
   const wasBelowGoal = mode === 'today' && dailyCounts(now).completed < target;
   const schedule = reviewSchedule(records[question.id], level, now);
-  records[question.id] = {...records[question.id], ...schedule, grade:level, reviewDay:dayKey(new Date(now))};
+  const prior = records[question.id];
+  const day = dayKey(new Date(now));
+  const attempts = attemptsFor(prior).concat({day, at:now, grade:level});
+  records[question.id] = {...prior, ...schedule, grade:level, reviewDay:day, lastReviewedAt:now, attempts};
   if (save()) toast(level === 'hard' ? '已加入重点重练，10 分钟后到期' : '已安排下次复习');
   if (inExtra()) {
     extraBatch.pending = queue.filter(q => q.id !== question.id);
@@ -515,7 +538,7 @@ byId('zoom-out').onclick = () => updateReaderZoom(zoomIndex - 1);
 byId('zoom-in').onclick = () => updateReaderZoom(zoomIndex + 1);
 
 document.addEventListener('keydown', event => {
-  if (reader.open || mode === 'builder') return;
+  if (event.repeat || reader.open || mode === 'builder' || mode === 'history') return;
   if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest('input, select, textarea')) return;
   if (event.code === 'Space' && !event.target.closest('button, a') && queue.length) {
     event.preventDefault();
@@ -524,6 +547,69 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowLeft') move(-1);
   if (event.key === 'ArrowRight') move(1);
   if (revealed && ['1','2','3'].includes(event.key)) grade(['hard','good','easy'][Number(event.key)-1]);
+});
+const gradeLabels = {hard:'还需练习',good:'基本掌握',easy:'熟练掌握'};
+const historyTime = new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
+
+function attemptsFor(record) {
+  if (!record) return [];
+  if (Array.isArray(record.attempts) && record.attempts.length) return record.attempts;
+  return record.reviewDay ? [{day:record.reviewDay,grade:record.grade,at:record.lastReviewedAt || null}] : [];
+}
+
+function normalizeDay(day) {
+  if (typeof day !== 'string') return '';
+  const parts = day.split('-');
+  if (parts.length !== 3) return '';
+  return parts.map(part => part.padStart(2,'0')).join('-');
+}
+
+function renderHistory() {
+  const date = byId('history-date').value;
+  const items = all.filter(q => belongs(q)).flatMap(question =>
+    attemptsFor(records[question.id]).map(attempt => ({question, ...attempt, date:normalizeDay(attempt.day)})))
+    .filter(item => item.date && (!date || item.date === date))
+    .sort((a,b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+  const sections = new Map();
+  for (const item of items) {
+    if (!sections.has(item.date)) sections.set(item.date,[]);
+    sections.get(item.date).push(item);
+  }
+  const unique = new Set(items.map(item => item.question.id)).size;
+  byId('history-summary').textContent = items.length ? `${unique} 道题 · ${items.length} 次练习` : '没有符合条件的练习记录';
+  const blocks = Array.from(sections, ([day,group]) => {
+    const block = document.createElement('section');
+    block.className = 'history-group';
+    const title = document.createElement('h2');
+    title.textContent = day;
+    const list = document.createElement('ul');
+    for (const item of group) {
+      const row = document.createElement('li');
+      const preview = document.createElement('button');
+      preview.className = 'exam-preview';
+      preview.textContent = `${item.question.deck.name} · 第 ${item.question.number} 题`;
+      preview.onclick = () => previewQuestion(item.question);
+      const result = document.createElement('span');
+      result.textContent = `${item.at ? historyTime.format(item.at) : '旧版记录'} · ${gradeLabels[item.grade] || '已练习'}`;
+      row.append(preview,result);
+      list.append(row);
+    }
+    block.append(title,list);
+    return block;
+  });
+  byId('history-list').replaceChildren(...blocks);
+}
+
+byId('history-date').onchange = renderHistory;
+byId('history-clear-date').onclick = () => {
+  byId('history-date').value = '';
+  renderHistory();
+};
+window.addEventListener('storage', event => {
+  if (event.key !== storageKey) return;
+  try { records = readRecords(); } catch { return; }
+  if (mode === 'history') renderHistory();
+  if (mode === 'today' && !revealed) filter();
 });
 examScope.value = course;
 openMode('today');
