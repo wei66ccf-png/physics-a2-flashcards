@@ -91,6 +91,16 @@ function saveExtra() {
   } catch {}
 }
 let queue = [];
+let practiceOrder = all;
+
+function shuffled(items) {
+  const result = [...items];
+  for (let end = result.length - 1; end > 0; end--) {
+    const pick = Math.floor(Math.random() * (end + 1));
+    [result[end],result[pick]] = [result[pick],result[end]];
+  }
+  return result;
+}
 let index = 0;
 let revealed = false;
 let toastTimer;
@@ -159,6 +169,7 @@ const libraryTitles = {all:'题库', due:'已到期', hard:'重点重练', star:
 
 function openMode(next) {
   mode = next;
+  if (mode === 'today' || inLibrary()) practiceOrder = shuffled(all);
   if (!inExtra()) extraBatch = null;
   const view = inExam() ? 'builder' : inExtra() ? 'today' : inLibrary() ? 'all' : mode;
   for (const control of modeButtons) {
@@ -219,11 +230,7 @@ byId('random-form').onsubmit = event => {
   const pool = eligible();
   const n = Number(byId('exam-size').value);
   if (!Number.isInteger(n) || n < 1 || n > pool.length) return;
-  for (let i = 0; i < n; i++) {
-    const j = i + Math.floor(Math.random() * (pool.length - i));
-    [pool[i],pool[j]] = [pool[j],pool[i]];
-  }
-  selected = pool.slice(0,n).map(q => q.id);
+  selected = shuffled(pool).slice(0,n).map(q => q.id);
   saveExam();
   renderBuilder();
   toast(`已随机抽取 ${n} 道题，可继续增删`);
@@ -294,11 +301,11 @@ function reviewSchedule(record, grade, now = Date.now()) {
 
 function todayQueue(matchesFilter) {
   const {completed, due, fresh} = dailyCounts();
-  due.sort((a, b) => records[a.id].due - records[b.id].due);
   const today = dayKey();
   const pendingDue = due.filter(q => records[q.id].reviewDay !== today);
   const remaining = Math.max(0, target - completed);
-  return pendingDue.filter(matchesFilter).concat(fresh.filter(matchesFilter)).slice(0, remaining);
+  const eligibleIds = new Set([...pendingDue,...fresh].map(q => q.id));
+  return practiceOrder.filter(q => eligibleIds.has(q.id) && matchesFilter(q)).slice(0, remaining);
 }
 
 function showDailyProgress() {
@@ -316,20 +323,7 @@ function showDailyProgress() {
 }
 
 function extraCandidates(kind) {
-  const now = Date.now();
-  const today = dayKey(new Date(now));
-  const scoped = all.filter(q => belongs(q));
-  if (kind === 'new') return scoped.filter(q => !hasPracticed(records[q.id]));
-  const old = scoped.filter(q => hasPracticed(records[q.id]));
-  return old.sort((a, b) => {
-    const first = records[a.id];
-    const second = records[b.id];
-    const firstDue = Number(first.due) || 0;
-    const secondDue = Number(second.due) || 0;
-    return Number(firstDue > now) - Number(secondDue > now) ||
-      Number(first.reviewDay === today) - Number(second.reviewDay === today) ||
-      (first.lastReviewedAt || 0) - (second.lastReviewedAt || 0) || firstDue - secondDue;
-  });
+  return all.filter(q => belongs(q) && hasPracticed(records[q.id]) === (kind === 'review'));
 }
 
 function updateExtraOptions() {
@@ -348,7 +342,7 @@ function updateExtraOptions() {
   if (count && (!size.value || Number(size.value) > count)) size.value = Math.min(count,5);
   byId('extra-start').disabled = !count;
   byId('extra-hint').textContent = count
-    ? `当前课程可选 ${count} 道${isReview ? '旧题，已到期优先' : '新题'}`
+    ? `当前课程可选 ${count} 道${isReview ? '旧题' : '新题'}`
     : '当前课程暂无可加练的题目';
 }
 
@@ -372,7 +366,7 @@ byId('extra-form').onsubmit = event => {
     kind,
     title: kind === 'new' ? '新题加练' : '旧题复习',
     total: count,
-    pending: pool.slice(0,count),
+    pending: shuffled(pool).slice(0,count),
   };
   saveExtra();
   openMode('extra');
@@ -396,7 +390,7 @@ function filter({keepPosition = false} = {}) {
     if (mode === 'today') return belongs(question);
     return belongs(question) && (!deck || question.deck.id === deck) && searchable.includes(term) && matchesMode(question);
   }
-  queue = inExtra() ? extraBatch.pending : inExam() ? selected.filter(id => !examRun.done.has(id)).map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : all).filter(matchesFilter);
+  queue = inExtra() ? extraBatch.pending : inExam() ? selected.filter(id => !examRun.done.has(id)).map(id => byQuestionId.get(id)) : mode === 'today' ? todayQueue(matchesFilter) : (keepPosition ? queue : practiceOrder).filter(matchesFilter);
   index = keepPosition && queue.length ? index % queue.length : 0;
   revealed = false;
   render();
@@ -587,13 +581,8 @@ byId('star').onclick = () => {
   else render();
 };
 byId('shuffle').onclick = () => {
-  for (let i = queue.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [queue[i], queue[j]] = [queue[j], queue[i]];
-  }
-  index = 0;
-  revealed = false;
-  render();
+  practiceOrder = shuffled(practiceOrder);
+  filter();
 };
 byId('reset').onclick = () => {
   if (!confirm('清空当前浏览器中记录的掌握程度和收藏？')) return;
