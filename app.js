@@ -111,6 +111,16 @@ function openMode(next) {
   const builderOpen = mode === 'builder';
   byId('builder').hidden = !builderOpen;
   const historyOpen = mode === 'history';
+  const currentHash = window.location.hash;
+  const desiredHash = historyOpen ? '#history' : currentHash === '#history' ? '' : currentHash;
+  if (currentHash !== desiredHash) {
+    try {
+      const url = new URL(window.location.href);
+      url.hash = desiredHash;
+      window.history.replaceState(null, '', url.href);
+    } catch {}
+  }
+  byId('history-shortcut').textContent = historyOpen ? '返回今日复习' : '练习历史';
   byId('history').hidden = !historyOpen;
   byId('study').hidden = builderOpen || historyOpen;
   byId('exam-return').hidden = !inExam();
@@ -600,6 +610,11 @@ function renderHistory() {
   byId('history-list').replaceChildren(...blocks);
 }
 
+byId('history-shortcut').onclick = () => openMode(mode === 'history' ? 'today' : 'history');
+window.addEventListener('hashchange', () => {
+  if (window.location.hash === '#history' && mode !== 'history') openMode('history');
+  else if (window.location.hash !== '#history' && mode === 'history') openMode('today');
+});
 byId('history-date').onchange = renderHistory;
 byId('history-clear-date').onclick = () => {
   byId('history-date').value = '';
@@ -612,7 +627,7 @@ window.addEventListener('storage', event => {
   if (mode === 'today' && !revealed) filter();
 });
 examScope.value = course;
-openMode('today');
+openMode(window.location.hash === '#history' ? 'history' : 'today');
 let displayedDay = dayKey();
 setInterval(() => {
   const today = dayKey();
